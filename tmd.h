@@ -2,12 +2,15 @@
 #ifndef _TMD_H_
 #define _TMD_H_
 
+#include <stdint.h>
+
+#pragma pack(push, 1)
 typedef struct
 {
 	uint16_t IndexOffset;			//	0	 0x204
 	uint16_t CommandCount;			//	2	 0x206
 	uint8_t	SHA2[32];				//	12	 0x208
-} __attribute__ ((gcc_struct, __packed__)) ContentInfo;
+} ContentInfo;
 
 typedef struct
 {
@@ -16,7 +19,7 @@ typedef struct
 	uint16_t Type;					//	6	 0xB0A
 	uint64_t Size;					//	8	 0xB0C
 	uint8_t	SHA2[32];				//	16	 0xB14
-} __attribute__ ((gcc_struct, __packed__)) Content;
+} Content;
 
 typedef struct _TitleMetaData
 {
@@ -47,6 +50,7 @@ typedef struct _TitleMetaData
 
 	Content Contents[];				// 0x1E4
 
-} __attribute__ ((gcc_struct, __packed__)) TitleMetaData;
+} TitleMetaData;
+#pragma pack(pop)
 
 #endif

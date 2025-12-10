@@ -4,14 +4,17 @@
  * This software may be modified and distributed under the terms
  * of the MIT license.  See the LICENSE file for details.
  */
+#ifndef _WIN32
 #define __USE_LARGEFILE64
 #define _LARGEFILE_SOURCE
 #define _LARGEFILE64_SOURCE
+#endif
 
 #include <stdio.h>
 #include <stdint.h>
 #include <stdbool.h>
 #include <inttypes.h>
+#include "platform.h"
 
 bool parts_open = false;
 FILE *parts[12] = { NULL };
@@ -38,9 +41,9 @@ bool wudparts_open(const char *path)
 		}
 		part_offset_current[i] = 0;
 		part_offset_start[i] = offset;
-		fseeko64(parts[i],0,SEEK_END);
-		uint64_t fsize = ftello64(parts[i]);
-		fseeko64(parts[i],0,SEEK_SET);
+		wud2app_fseeko64(parts[i],0,SEEK_END);
+		uint64_t fsize = wud2app_ftello64(parts[i]);
+		wud2app_fseeko64(parts[i],0,SEEK_SET);
 		if((i == 11 && fsize != 0x53A00000) || (i != 11 && fsize != 0x80000000))
 		{
 			printf("game_part%i.wud has a wrong filesize!\n", i+1);
@@ -80,7 +83,7 @@ static size_t _wudparts_read_offset(uint8_t *buf, uint64_t offset, size_t len)
 			if(part_offset_current[i] != seekOffset)
 			{
 				printf("Seeking to 0x%" PRIx64 " in game_part%i.wud\n", seekOffset, i+1);
-				fseeko64(parts[i], seekOffset, SEEK_SET);
+				wud2app_fseeko64(parts[i], seekOffset, SEEK_SET);
 				part_offset_current[i] = seekOffset;
 			}
 			size_t toread = (size_t)((offset + len) > part_offset_end[i]) ? (part_offset_end[i] - offset) : len;

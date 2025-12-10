@@ -2,6 +2,9 @@
 #ifndef _FST_H_
 #define _FST_H_
 
+#include <stdint.h>
+
+#pragma pack(push, 1)
 typedef struct _FEntry
 {
 	union
@@ -29,6 +32,7 @@ typedef struct _FEntry
 	};
 	uint16_t Flags;
 	uint16_t ContentID;
-} __attribute__ ((gcc_struct, __packed__)) FEntry;
+} FEntry;
+#pragma pack(pop)
 
 #endif

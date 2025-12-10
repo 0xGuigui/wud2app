@@ -4,16 +4,19 @@
  * This software may be modified and distributed under the terms
  * of the MIT license.  See the LICENSE file for details.
  */
+#ifndef _WIN32
 #define __USE_LARGEFILE64
 #define _LARGEFILE_SOURCE
 #define _LARGEFILE64_SOURCE
+#endif
 
 #include <stdio.h>
-#include <malloc.h>
+#include <stdlib.h>
 #include <stdint.h>
 #include <stdbool.h>
 #include <inttypes.h>
 #include <string.h>
+#include "platform.h"
 #include "rijndael.h"
 #include "sha1.h"
 #include "fst.h"
@@ -21,8 +24,7 @@
 #include "structs.h"
 #include "wudparts.h"
 
-#define ALIGN_FORWARD(x,align) \
-	((typeof(x))((((uint32_t)(x)) + (align) - 1) & (~(align-1))))
+#define ALIGN_FORWARD(x, align) wud2app_align_forward((uint64_t)(x), (uint64_t)(align))
 
 int main(int argc, char *argv[])
 {
@@ -148,7 +150,7 @@ int main(int argc, char *argv[])
 	}
 	else
 	{
-		fseeko64(f, 0x18000, SEEK_SET);
+		wud2app_fseeko64(f, 0x18000, SEEK_SET);
 		fread(partTblEnc, 1, 0x8000, f);
 	}
 	uint8_t iv[16];
@@ -158,7 +160,7 @@ int main(int argc, char *argv[])
 	aes_decrypt(iv,partTblEnc,partTbl,0x8000);
 	free(partTblEnc);
 
-	uint32_t magic = __builtin_bswap32(*(uint32_t*)partTbl);
+	uint32_t magic = wud2app_bswap32(*(uint32_t*)partTbl);
 	if(magic != 0xCCA6E67B)
 	{
 		puts("Invalid FST!");
@@ -166,11 +168,11 @@ int main(int argc, char *argv[])
 	}
 	//make sure TOC is actually valid
 	uint32_t expectedHash[5];
-	expectedHash[0] = __builtin_bswap32(*(uint32_t*)(partTbl+8));
-	expectedHash[1] = __builtin_bswap32(*(uint32_t*)(partTbl+12));
-	expectedHash[2] = __builtin_bswap32(*(uint32_t*)(partTbl+16));
-	expectedHash[3] = __builtin_bswap32(*(uint32_t*)(partTbl+20));
-	expectedHash[4] = __builtin_bswap32(*(uint32_t*)(partTbl+24));
+	expectedHash[0] = wud2app_bswap32(*(uint32_t*)(partTbl+8));
+	expectedHash[1] = wud2app_bswap32(*(uint32_t*)(partTbl+12));
+	expectedHash[2] = wud2app_bswap32(*(uint32_t*)(partTbl+16));
+	expectedHash[3] = wud2app_bswap32(*(uint32_t*)(partTbl+20));
+	expectedHash[4] = wud2app_bswap32(*(uint32_t*)(partTbl+24));
 
 	SHA1Context ctx;
 	SHA1Reset(&ctx);
@@ -183,7 +185,7 @@ int main(int argc, char *argv[])
 		goto extractEnd;
 	}
 
-	int numPartitions = __builtin_bswap32(*(uint32_t*)(partTbl+0x1C));
+	int numPartitions = wud2app_bswap32(*(uint32_t*)(partTbl+0x1C));
 	int siPart;
 	toc_t *tbl = (toc_t*)(partTbl+0x800);
 	void *tmdBuf = NULL;
@@ -194,20 +196,20 @@ int main(int argc, char *argv[])
 	//start by getting cert, tik and tmd
 	for(siPart = 0; siPart < numPartitions; siPart++)
 	{
-		if(strncasecmp(tbl[siPart].name,"SI",3) == 0)
+		if(wud2app_strncasecmp(tbl[siPart].name,"SI",3) == 0)
 			break;
 	}
-	if(strncasecmp(tbl[siPart].name,"SI",3) != 0)
+	if(wud2app_strncasecmp(tbl[siPart].name,"SI",3) != 0)
 	{
 		puts("No SI Partition found!");
 		goto extractEnd;
 	}
 
 	//create output folder
-	mkdir(outDir);
+	wud2app_mkdir(outDir);
 
 	//dont care about first header but only about data
-	uint64_t offset = ((uint64_t)__builtin_bswap32(tbl[siPart].offsetBE))*0x8000;
+	uint64_t offset = ((uint64_t)wud2app_bswap32(tbl[siPart].offsetBE))*0x8000;
 	offset += 0x8000;
 	//read out FST
 	puts("Reading SI FST from WUD");
@@ -219,7 +221,7 @@ int main(int argc, char *argv[])
 	}
 	else
 	{
-		fseeko64(f, offset, SEEK_SET);
+		wud2app_fseeko64(f, offset, SEEK_SET);
 		fread(fstEnc, 1, 0x8000, f);
 	}
 	void *fstDec = malloc(0x8000);
@@ -227,8 +229,8 @@ int main(int argc, char *argv[])
 	aes_set_key(gamekey);
 	aes_decrypt(iv, fstEnc, fstDec, 0x8000);
 	free(fstEnc);
-	uint32_t EntryCount = (__builtin_bswap32(*(uint32_t*)(fstDec + 8)) << 5);
-	uint32_t Entries = __builtin_bswap32(*(uint32_t*)(fstDec + 0x20 + EntryCount + 8));
+	uint32_t EntryCount = (wud2app_bswap32(*(uint32_t*)(fstDec + 8)) << 5);
+	uint32_t Entries = wud2app_bswap32(*(uint32_t*)(fstDec + 0x20 + EntryCount + 8));
 	uint32_t NameOff = 0x20 + EntryCount + (Entries << 4);
 	FEntry *fe = (FEntry*)(fstDec + 0x20 + EntryCount);
 
@@ -239,13 +241,13 @@ int main(int argc, char *argv[])
 	{
 		if(certFound && tikFound && tmdFound)
 			break;
-		uint32_t cNameOffset = __builtin_bswap32(fe[entry].NameOffset) >> 8;
+		uint32_t cNameOffset = wud2app_bswap32(fe[entry].NameOffset) >> 8;
 		const char *name = (const char*)(fstDec + NameOff + cNameOffset);
-		if(strncasecmp(name, "title.", 6) != 0)
+		if(wud2app_strncasecmp(name, "title.", 6) != 0)
 			continue;
-		uint32_t CNTSize = __builtin_bswap32(fe[entry].FileLength);
-		uint64_t CNTOff = ((uint64_t)__builtin_bswap32(fe[entry].FileOffset)) << 5;
-		uint64_t CNT_IV = __builtin_bswap64(CNTOff >> 16);
+		uint32_t CNTSize = wud2app_bswap32(fe[entry].FileLength);
+		uint64_t CNTOff = ((uint64_t)wud2app_bswap32(fe[entry].FileOffset)) << 5;
+		uint64_t CNT_IV = wud2app_bswap64(CNTOff >> 16);
 		void *titleF = malloc(ALIGN_FORWARD(CNTSize,16));
 		if(use_wudparts)
 		{
@@ -254,7 +256,7 @@ int main(int argc, char *argv[])
 		}
 		else
 		{
-			fseeko64(f, offset + CNTOff, SEEK_SET);
+			wud2app_fseeko64(f, offset + CNTOff, SEEK_SET);
 			fread(titleF, 1, ALIGN_FORWARD(CNTSize,16), f);
 		}
 		uint8_t *titleDec = malloc(ALIGN_FORWARD(CNTSize,16));
@@ -266,7 +268,7 @@ int main(int argc, char *argv[])
 		char outF[64];
 		sprintf(outF,"%s/%s",outDir,name);
 		//just write the first found cert, they're all the same anyways
-		if(strncasecmp(name, "title.cert", 11) == 0 && !certFound)
+		if(wud2app_strncasecmp(name, "title.cert", 11) == 0 && !certFound)
 		{
 			puts("Writing title.cert");
 			FILE *t = fopen(outF, "wb");
@@ -274,9 +276,9 @@ int main(int argc, char *argv[])
 			fclose(t);
 			certFound = true;
 		}
-		else if(strncasecmp(name, "title.tik", 10) == 0 && !tikFound)
+		else if(wud2app_strncasecmp(name, "title.tik", 10) == 0 && !tikFound)
 		{
-			uint32_t tidHigh = __builtin_bswap32(*(uint32_t*)(titleDec+0x1DC));
+			uint32_t tidHigh = wud2app_bswap32(*(uint32_t*)(titleDec+0x1DC));
 			if(tidHigh == 0x00050000)
 			{
 				puts("Writing title.tik");
@@ -296,9 +298,9 @@ int main(int argc, char *argv[])
 				aes_decrypt(iv,tikKeyEnc,tikKey,16);
 			}
 		}
-		else if(strncasecmp(name, "title.tmd", 10) == 0 && !tmdFound)
+		else if(wud2app_strncasecmp(name, "title.tmd", 10) == 0 && !tmdFound)
 		{
-			uint32_t tidHigh = __builtin_bswap32(*(uint32_t*)(titleDec+0x18C));
+			uint32_t tidHigh = wud2app_bswap32(*(uint32_t*)(titleDec+0x18C));
 			if(tidHigh == 0x00050000)
 			{
 				puts("Writing title.tmd");
@@ -321,7 +323,7 @@ int main(int argc, char *argv[])
 	}
 	TitleMetaData *tmd = (TitleMetaData*)tmdBuf;
 	char gmChar[19];
-	uint64_t fullTid = __builtin_bswap64(tmd->TitleID);
+	uint64_t fullTid = wud2app_bswap64(tmd->TitleID);
 	sprintf(gmChar,"GM%016" PRIx64, fullTid);
 	printf("Searching for %s Partition\n", gmChar);
 	uint32_t appBufLen = 64*1024*1024;
@@ -330,16 +332,16 @@ int main(int argc, char *argv[])
 	int gmPart;
 	for(gmPart = 0; gmPart < numPartitions; gmPart++)
 	{
-		if(strncasecmp(tbl[gmPart].name,gmChar,18) == 0)
+		if(wud2app_strncasecmp(tbl[gmPart].name,gmChar,18) == 0)
 			break;
 	}
-	if(strncasecmp(tbl[gmPart].name,gmChar,18) != 0)
+	if(wud2app_strncasecmp(tbl[gmPart].name,gmChar,18) != 0)
 	{
 		puts("No GM Partition found!");
 		goto extractEnd;
 	}
 	puts("Reading GM Header from WUD");
-	offset = ((uint64_t)__builtin_bswap32(tbl[gmPart].offsetBE))*0x8000;
+	offset = ((uint64_t)wud2app_bswap32(tbl[gmPart].offsetBE))*0x8000;
 	uint8_t *fHdr = malloc(0x8000);
 	if(use_wudparts)
 	{
@@ -348,15 +350,15 @@ int main(int argc, char *argv[])
 	}
 	else
 	{
-		fseeko64(f, offset, SEEK_SET);
+		wud2app_fseeko64(f, offset, SEEK_SET);
 		fread(fHdr, 1, 0x8000, f);
 	}
-	uint32_t fHdrCnt = __builtin_bswap32(*(uint32_t*)(fHdr+0x10));
+	uint32_t fHdrCnt = wud2app_bswap32(*(uint32_t*)(fHdr+0x10));
 	uint8_t *hashPos = fHdr + 0x40 + (fHdrCnt*4);
 
 	//grab FST first
 	puts("Reading GM FST from WUD");
-	uint64_t fstSize = __builtin_bswap64(tmd->Contents[0].Size);
+	uint64_t fstSize = wud2app_bswap64(tmd->Contents[0].Size);
 	fstEnc = malloc(ALIGN_FORWARD(fstSize,16));
 	if(use_wudparts)
 	{
@@ -365,11 +367,11 @@ int main(int argc, char *argv[])
 	}
 	else
 	{
-		fseeko64(f, offset + 0x8000, SEEK_SET);
+		wud2app_fseeko64(f, offset + 0x8000, SEEK_SET);
 		fread(fstEnc, 1, ALIGN_FORWARD(fstSize,16), f);
 	}
 	//write FST to file
-	uint32_t fstContentCid = __builtin_bswap32(tmd->Contents[0].ID);
+	uint32_t fstContentCid = wud2app_bswap32(tmd->Contents[0].ID);
 	char outF[64];
 	sprintf(outF,"%s/%08x.app",outDir,fstContentCid);
 	printf("Writing %08x.app\n",fstContentCid);
@@ -387,18 +389,18 @@ int main(int argc, char *argv[])
 	app_tbl_t *appTbl = (app_tbl_t*)(fstDec+0x20);
 
 	//write in files
-	uint16_t titleCnt = __builtin_bswap16(tmd->ContentCount);
+	uint16_t titleCnt = wud2app_bswap16(tmd->ContentCount);
 	uint16_t curCont;
 	for(curCont = 1; curCont < titleCnt; curCont++)
 	{
-		uint64_t appOffset = ((uint64_t)__builtin_bswap32(appTbl[curCont].offsetBE))*0x8000;
+		uint64_t appOffset = ((uint64_t)wud2app_bswap32(appTbl[curCont].offsetBE))*0x8000;
 		uint64_t totalAppOffset = offset + appOffset;
 		if(use_wudparts)
 			wudparts_seek(totalAppOffset);
 		else
-			fseeko64(f, totalAppOffset, SEEK_SET);
-		uint64_t tSize = __builtin_bswap64(tmd->Contents[curCont].Size);
-		uint32_t curContentCid = __builtin_bswap32(tmd->Contents[curCont].ID);
+			wud2app_fseeko64(f, totalAppOffset, SEEK_SET);
+		uint64_t tSize = wud2app_bswap64(tmd->Contents[curCont].Size);
+		uint32_t curContentCid = wud2app_bswap32(tmd->Contents[curCont].ID);
 		char outF[64];
 		sprintf(outF,"%s/%08x.app",outDir,curContentCid);
 		printf("Writing %08x.app\n",curContentCid);
@@ -415,7 +417,7 @@ int main(int argc, char *argv[])
 			total -= toWrite;
 		}
 		fclose(t);
-		uint16_t type = __builtin_bswap16(tmd->Contents[curCont].Type);
+		uint16_t type = wud2app_bswap16(tmd->Contents[curCont].Type);
 		if(type & 2) //h3 hashes used
 		{
 			char outF[64];
