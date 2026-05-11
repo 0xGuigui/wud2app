@@ -2,6 +2,8 @@
 #ifndef _WUDPARTS_H_
 #define _WUDPARTS_H_
 
+#include <stdbool.h>
+
 bool wudparts_open(const char *path);
 size_t wudparts_read(void *buf, size_t len);
 uint64_t wudparts_tell();
